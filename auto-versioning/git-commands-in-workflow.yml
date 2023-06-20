@@ -1,0 +1,34 @@
+.increment-versions:
+  image: ${MAVEN_IMAGE}
+  script:
+    - git config --global user.email $GITLAB_USER_EMAIL
+    - git config --global user.name $GITLAB_USER_NAME
+
+    # Set the version on the main branch correctly.
+    - git checkout $MAIN_BRANCH
+    - git reset --hard HEAD
+    - git pull https://token:$CI_ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git $MAIN_BRANCH --rebase
+    - git rev-parse HEAD
+    - echo "Removing SNAPSHOT from version..."
+    - mvn $MAVEN_CLI_OPTS versions:set -DremoveSnapshot
+    - POM_VERSION=$(mvn $MAVEN_CLI_OPTS help:evaluate -Dexpression=project.version -q -DforceStdout)
+    - git commit -am "Release for version $POM_VERSION"
+    - git tag -m "Release version $POM_VERSION" $POM_VERSION
+
+    # Increment the development version.
+    - git fetch --all
+    - git checkout $DEVELOP_BRANCH
+    - git reset --hard HEAD
+    - git pull https://token:$CI_ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git $DEVELOP_BRANCH --rebase
+    - git merge $MAIN_BRANCH -X theirs -m "[CI PIPELINE] Sync $MAIN_BRANCH and $DEVELOP_BRANCH"
+    - mvn $MAVEN_CLI_OPTS --batch-mode release:update-versions -DautoVersionSubmodules=true
+    - POM_VERSION=$(mvn $MAVEN_CLI_OPTS help:evaluate -Dexpression=project.version -q -DforceStdout)
+    - git commit -am "Increment versions to '$POM_VERSION'"
+
+    # push without initiating pipeline.
+    - git push -o ci.skip https://token:$CI_ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git $MAIN_BRANCH
+    - git push -o ci.skip https://token:$CI_ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git $DEVELOP_BRANCH
+    - git push -o ci.skip --tags https://token:$CI_ACCESS_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git
+
+    # Make sure to continue the rest of the pipeline on the main branch.
+    - git checkout $MAIN_BRANCH

@@ -1,0 +1,130 @@
+openapi: 3.0.3
+info:
+  title: OpenAPI Specification with polymorphism
+  version: 1.0.0
+servers:
+  - url: https://example-service/
+    description: dev namespace
+paths:
+  /user/{username}:
+    description: Returns the user details based on username
+    parameters:
+      - name: username
+        in: path
+        required: true
+        schema:
+          type: string
+        description: user name
+    get:
+      operationId: getUser
+      tags:
+        - User
+      responses:
+        '200':
+          description: OK - the user details of username
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Deletes user based on username
+      operationId: deleteUser
+      tags:
+        - User
+      responses:
+        '204':
+          description: '#/components/responses/NoContent'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+security:
+  - bearerAuth: [ ]
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+
+    #---------------------------------------------------------------------------
+    # Abstract class with discriminator 'User'
+    #---------------------------------------------------------------------------
+    'User':
+      type: object
+      discriminator:
+        propertyName: '@type'
+        mapping:
+          MANAGER: '#/components/schemas/ManagerUser'
+          EMPLOYEE: '#/components/schemas/EmployeeUser'
+      required:
+        - firstname
+        - lastname
+        - age
+        - department
+      properties:
+        'firstname':
+          type: string
+        'lastname':
+          type: string
+        'department':
+          type: string
+        'age':
+          type: integer
+
+    #---------------------------------------------------------------------------
+    # Concrete classes
+    #---------------------------------------------------------------------------
+    ManagerUser:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+      required:
+        - managingDepartment
+        - directs
+      properties:
+        'managingDepartment':
+          type: string
+        'directs':
+          type: array
+          items:
+            type:  object
+            $ref: "#/components/schemas/EmployeeUser"
+    EmployeeUser:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+      required:
+        - projectName
+        - manager
+      properties:
+        'projectName':
+          type: string
+        'manager':
+          type: object
+          $ref: "#/components/schemas/User"
+
+  responses:
+    BadRequest:
+      description: Request is not proper.
+    UnauthorizedError:
+      description: Unauthorized for this request.
+    NotFound:
+      description: The User is not found.
+    InternalServerError:
+      description: Internal server failure.
+    ServiceUnavailable:
+      description: Service is not available.
+    Created:
+      description: The User is created.
+    NoContent:
+      description: The User is deleted.
